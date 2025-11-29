@@ -12,6 +12,7 @@ import groupRoutes from "./routes/group.route.js";
 import { connectDB } from "./lib/db.js";
 
 const app = express();
+// Use Render's PORT or fallback to 5001 for local dev
 const PORT = process.env.PORT || 5001;
 
 const __dirname = path.resolve();
