@@ -40,16 +40,12 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// Health check route
-app.get("/", (req, res) => {
-  res.json({ message: "ChatApp API is running!" });
-});
-
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/groups", groupRoutes);
 
+// Serve frontend in production
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
@@ -57,6 +53,11 @@ if (process.env.NODE_ENV === "production") {
     res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
   });
 }
+
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  connectDB();
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
