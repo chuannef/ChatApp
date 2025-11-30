@@ -51,9 +51,9 @@ console.log("NODE_ENV:", process.env.NODE_ENV);
 console.log("__dirname:", __dirname);
 
 if (process.env.NODE_ENV === "production") {
-  // __dirname is /opt/render/project/src/backend/src
+  // __dirname is /opt/render/project/src/backend
   // frontend/dist is at /opt/render/project/src/frontend/dist
-  const frontendPath = path.join(__dirname, "../../../frontend/dist");
+  const frontendPath = path.join(__dirname, "../../frontend/dist");
   console.log("Serving frontend from:", frontendPath);
   
   app.use(express.static(frontendPath));
