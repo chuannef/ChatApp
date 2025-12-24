@@ -1,6 +1,17 @@
 import User from "../models/User.js";
 import FriendRequest from "../models/FriendRequest.js";
 
+function stripBase64ProfilePic(doc) {
+  if (!doc) return doc;
+
+  const profilePic = doc.profilePic;
+  if (typeof profilePic === "string" && profilePic.startsWith("data:image/")) {
+    return { ...doc, profilePic: "" };
+  }
+
+  return doc;
+}
+
 export async function getRecommendedUsers(req, res) {
   try {
     const currentUserId = req.user.id;
@@ -12,8 +23,11 @@ export async function getRecommendedUsers(req, res) {
         { _id: { $nin: currentUser.friends } }, // exclude current user's friends
         { isOnboarded: true },
       ],
-    });
-    res.status(200).json(recommendedUsers);
+    })
+      .select("fullName profilePic nativeLanguage learningLanguage location bio isOnboarded")
+      .lean();
+
+    res.status(200).json(recommendedUsers.map(stripBase64ProfilePic));
   } catch (error) {
     console.error("Error in getRecommendedUsers controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
@@ -24,9 +38,11 @@ export async function getMyFriends(req, res) {
   try {
     const user = await User.findById(req.user.id)
       .select("friends")
-      .populate("friends", "fullName profilePic nativeLanguage learningLanguage");
+      .populate("friends", "fullName profilePic nativeLanguage learningLanguage")
+      .lean();
 
-    res.status(200).json(user.friends);
+    const friends = Array.isArray(user?.friends) ? user.friends : [];
+    res.status(200).json(friends.map(stripBase64ProfilePic));
   } catch (error) {
     console.error("Error in getMyFriends controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
@@ -119,14 +135,27 @@ export async function getFriendRequests(req, res) {
     const incomingReqs = await FriendRequest.find({
       recipient: req.user.id,
       status: "pending",
-    }).populate("sender", "fullName profilePic nativeLanguage learningLanguage");
+    })
+      .populate("sender", "fullName profilePic nativeLanguage learningLanguage")
+      .lean();
 
     const acceptedReqs = await FriendRequest.find({
       sender: req.user.id,
       status: "accepted",
-    }).populate("recipient", "fullName profilePic");
+    })
+      .populate("recipient", "fullName profilePic")
+      .lean();
 
-    res.status(200).json({ incomingReqs, acceptedReqs });
+    res.status(200).json({
+      incomingReqs: incomingReqs.map((r) => ({
+        ...r,
+        sender: stripBase64ProfilePic(r.sender),
+      })),
+      acceptedReqs: acceptedReqs.map((r) => ({
+        ...r,
+        recipient: stripBase64ProfilePic(r.recipient),
+      })),
+    });
   } catch (error) {
     console.log("Error in getPendingFriendRequests controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
@@ -138,9 +167,16 @@ export async function getOutgoingFriendReqs(req, res) {
     const outgoingRequests = await FriendRequest.find({
       sender: req.user.id,
       status: "pending",
-    }).populate("recipient", "fullName profilePic nativeLanguage learningLanguage");
+    })
+      .populate("recipient", "fullName profilePic nativeLanguage learningLanguage")
+      .lean();
 
-    res.status(200).json(outgoingRequests);
+    res.status(200).json(
+      outgoingRequests.map((r) => ({
+        ...r,
+        recipient: stripBase64ProfilePic(r.recipient),
+      }))
+    );
   } catch (error) {
     console.log("Error in getOutgoingFriendReqs controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });

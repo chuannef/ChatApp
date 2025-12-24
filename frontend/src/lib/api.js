@@ -64,6 +64,17 @@ export async function getStreamToken() {
   return response.data;
 }
 
+// Messages (Socket.IO chat)
+export async function getDmMessages(userId) {
+  const response = await axiosInstance.get(`/messages/dm/${userId}`);
+  return response.data;
+}
+
+export async function getGroupMessages(groupId) {
+  const response = await axiosInstance.get(`/messages/group/${groupId}`);
+  return response.data;
+}
+
 // Group APIs
 export async function getMyGroups() {
   const response = await axiosInstance.get("/groups/my-groups");
@@ -85,6 +96,26 @@ export async function joinGroup(groupId) {
   return response.data;
 }
 
+export async function getGroupJoinRequests(groupId) {
+  const response = await axiosInstance.get(`/groups/${groupId}/join-requests`);
+  return response.data;
+}
+
+export async function approveGroupJoinRequest(groupId, userId) {
+  const response = await axiosInstance.post(`/groups/${groupId}/join-requests/${userId}/approve`);
+  return response.data;
+}
+
+export async function rejectGroupJoinRequest(groupId, userId) {
+  const response = await axiosInstance.post(`/groups/${groupId}/join-requests/${userId}/reject`);
+  return response.data;
+}
+
+export async function removeGroupMember(groupId, memberId) {
+  const response = await axiosInstance.delete(`/groups/${groupId}/members/${memberId}`);
+  return response.data;
+}
+
 export async function leaveGroup(groupId) {
   const response = await axiosInstance.post(`/groups/${groupId}/leave`);
   return response.data;
@@ -92,6 +123,35 @@ export async function leaveGroup(groupId) {
 
 export async function deleteGroup(groupId) {
   const response = await axiosInstance.delete(`/groups/${groupId}`);
+  return response.data;
+}
+
+export async function getGroupById(groupId) {
+  const response = await axiosInstance.get(`/groups/${groupId}`);
+  return response.data;
+}
+
+// Group Assignments APIs
+export async function getGroupAssignments(groupId) {
+  const response = await axiosInstance.get(`/groups/${groupId}/assignments`);
+  return response.data;
+}
+
+export async function createGroupAssignment(groupId, payload) {
+  const response = await axiosInstance.post(`/groups/${groupId}/assignments`, payload);
+  return response.data;
+}
+
+export async function deleteGroupAssignment(groupId, assignmentId) {
+  const response = await axiosInstance.delete(`/groups/${groupId}/assignments/${assignmentId}`);
+  return response.data;
+}
+
+export async function setGroupAssignmentCompletion(groupId, assignmentId, completed) {
+  const response = await axiosInstance.post(
+    `/groups/${groupId}/assignments/${assignmentId}/complete`,
+    typeof completed === "boolean" ? { completed } : {}
+  );
   return response.data;
 }
 

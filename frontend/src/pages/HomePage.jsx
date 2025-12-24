@@ -10,6 +10,7 @@ import { CheckCircleIcon, MapPinIcon, UserPlusIcon } from "lucide-react";
 import { capitialize } from "../lib/utils";
 
 import { getLanguageFlag } from "../components/FriendCard";
+import { getUserAvatarSrc } from "../lib/avatar";
 
 const HomePage = () => {
   const queryClient = useQueryClient();
@@ -18,11 +19,15 @@ const HomePage = () => {
   const { data: recommendedUsers = [], isLoading: loadingUsers } = useQuery({
     queryKey: ["users"],
     queryFn: getRecommendedUsers,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: outgoingFriendReqs } = useQuery({
     queryKey: ["outgoingFriendReqs"],
     queryFn: getOutgoingFriendReqs,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { mutate: sendRequestMutation, isPending } = useMutation({
@@ -78,8 +83,14 @@ const HomePage = () => {
                   >
                     <div className="card-body p-5 space-y-4">
                       <div className="flex items-center gap-3">
-                        <div className="avatar size-16 rounded-full">
-                          <img src={user.profilePic} alt={user.fullName} />
+                        <div className="avatar">
+                          <div className="size-16 rounded-full">
+                            <img
+                              className="rounded-full"
+                              src={getUserAvatarSrc(user)}
+                              alt={user.fullName}
+                            />
+                          </div>
                         </div>
 
                         <div>
@@ -94,12 +105,12 @@ const HomePage = () => {
                       </div>
 
                       {/* Languages with flags */}
-                      <div className="flex flex-wrap gap-1.5">
-                        <span className="badge badge-secondary">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="badge badge-secondary w-fit">
                           {getLanguageFlag(user.nativeLanguage)}
                           Native: {capitialize(user.nativeLanguage)}
                         </span>
-                        <span className="badge badge-outline">
+                        <span className="badge badge-outline w-fit">
                           {getLanguageFlag(user.learningLanguage)}
                           Learning: {capitialize(user.learningLanguage)}
                         </span>

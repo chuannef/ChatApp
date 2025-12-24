@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router";
+import toast from "react-hot-toast";
 import { 
   Users2Icon, 
   PlusIcon, 
@@ -20,6 +22,7 @@ import {
   getUserFriends 
 } from "../lib/api";
 import useAuthUser from "../hooks/useAuthUser";
+import { getUserAvatarSrc } from "../lib/avatar";
 
 const GroupsPage = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -31,20 +34,30 @@ const GroupsPage = () => {
   const { data: myGroups = [], isLoading: loadingMyGroups } = useQuery({
     queryKey: ["myGroups"],
     queryFn: getMyGroups,
+    enabled: activeTab === "my-groups",
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch available groups
   const { data: availableGroups = [], isLoading: loadingAvailable } = useQuery({
     queryKey: ["availableGroups"],
     queryFn: getAvailableGroups,
+    enabled: activeTab === "available",
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Join group mutation
   const { mutate: joinGroupMutation, isPending: isJoining } = useMutation({
     mutationFn: joinGroup,
     onSuccess: () => {
+      toast.success("Join request sent");
       queryClient.invalidateQueries({ queryKey: ["myGroups"] });
       queryClient.invalidateQueries({ queryKey: ["availableGroups"] });
+    },
+    onError: (err) => {
+      toast.error(err?.response?.data?.message || "Failed to send join request");
     },
   });
 
@@ -240,7 +253,7 @@ const GroupCard = ({
             <div key={member._id} className="avatar border-2 border-base-200 rounded-full">
               <div className="w-8 rounded-full">
                 <img 
-                  src={member.profilePic || "/avatar.png"} 
+                  src={getUserAvatarSrc(member)} 
                   alt={member.fullName} 
                 />
               </div>
@@ -257,6 +270,9 @@ const GroupCard = ({
 
         {/* Actions */}
         <div className="card-actions justify-end mt-4">
+          {isMyGroup && (
+            <Link className="btn btn-primary btn-sm" to={`/groups/${group._id}`}>Open</Link>
+          )}
           {isMyGroup ? (
             <>
               {isAdmin ? (
@@ -295,14 +311,14 @@ const GroupCard = ({
             <button 
               className="btn btn-primary btn-sm"
               onClick={onJoin}
-              disabled={isJoining}
+              disabled={isJoining || group?.hasPendingJoinRequest}
             >
               {isJoining ? (
                 <span className="loading loading-spinner loading-xs"></span>
               ) : (
                 <>
                   <UserPlusIcon className="size-4" />
-                  Join
+                  {group?.hasPendingJoinRequest ? "Requested" : "Request to join"}
                 </>
               )}
             </button>
@@ -435,7 +451,7 @@ const CreateGroupModal = ({ onClose }) => {
                     <div className="avatar">
                       <div className="w-8 rounded-full">
                         <img 
-                          src={friend.profilePic || "/avatar.png"} 
+                          src={getUserAvatarSrc(friend)} 
                           alt={friend.fullName} 
                         />
                       </div>

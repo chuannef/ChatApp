@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { LANGUAGE_TO_FLAG } from "../constants";
+import { getUserAvatarSrc } from "../lib/avatar";
 
 const FriendCard = ({ friend }) => {
   return (
@@ -7,18 +8,24 @@ const FriendCard = ({ friend }) => {
       <div className="card-body p-4">
         {/* USER INFO */}
         <div className="flex items-center gap-3 mb-3">
-          <div className="avatar size-12">
-            <img src={friend.profilePic} alt={friend.fullName} />
+          <div className="avatar">
+            <div className="size-12 rounded-full">
+              <img
+                className="rounded-full"
+                src={getUserAvatarSrc(friend)}
+                alt={friend.fullName}
+              />
+            </div>
           </div>
           <h3 className="font-semibold truncate">{friend.fullName}</h3>
         </div>
 
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          <span className="badge badge-secondary text-xs">
+        <div className="flex flex-col gap-1.5 mb-3">
+          <span className="badge badge-secondary text-xs w-fit">
             {getLanguageFlag(friend.nativeLanguage)}
             Native: {friend.nativeLanguage}
           </span>
-          <span className="badge badge-outline text-xs">
+          <span className="badge badge-outline text-xs w-fit">
             {getLanguageFlag(friend.learningLanguage)}
             Learning: {friend.learningLanguage}
           </span>

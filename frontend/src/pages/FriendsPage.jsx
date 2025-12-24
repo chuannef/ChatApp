@@ -7,6 +7,8 @@ const FriendsPage = () => {
   const { data: friends = [], isLoading } = useQuery({
     queryKey: ["friends"],
     queryFn: getUserFriends,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   return (

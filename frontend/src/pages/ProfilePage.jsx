@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { completeOnboarding } from "../lib/api";
 import { CameraIcon, LoaderIcon, MapPinIcon, SaveIcon, ShuffleIcon } from "lucide-react";
 import { LANGUAGES } from "../constants";
+import { pickRandomAvatar } from "../lib/avatar";
 
 const ProfilePage = () => {
   const { authUser } = useAuthUser();
@@ -37,11 +38,20 @@ const ProfilePage = () => {
   };
 
   const handleRandomAvatar = () => {
-    const idx = Math.floor(Math.random() * 100) + 1;
-    const randomAvatar = `https://avatar.iran.liara.run/public/${idx}.png`;
-
-    setFormState({ ...formState, profilePic: randomAvatar });
+    setFormState({ ...formState, profilePic: pickRandomAvatar() });
     toast.success("Random profile picture generated!");
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormState({ ...formState, profilePic: reader.result });
+      toast.success("Profile picture uploaded!");
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -70,11 +80,23 @@ const ProfilePage = () => {
                 </div>
 
                 {/* Generate Random Avatar BTN */}
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={handleRandomAvatar} className="btn btn-accent">
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <button type="button" onClick={handleRandomAvatar} className="btn btn-accent btn-sm sm:btn-md">
                     <ShuffleIcon className="size-4 mr-2" />
-                    Generate Random Avatar
+                    Random Avatar
                   </button>
+                  
+                  <label htmlFor="avatar-upload" className="btn btn-primary btn-sm sm:btn-md cursor-pointer">
+                    <CameraIcon className="size-4 mr-2" />
+                    Upload Image
+                  </label>
+                  <input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
                 </div>
               </div>
 
@@ -107,49 +129,46 @@ const ProfilePage = () => {
                 />
               </div>
 
-              {/* LANGUAGES */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* NATIVE LANGUAGE */}
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">Native Language</span>
-                  </label>
-                  <select
-                    name="nativeLanguage"
-                    value={formState.nativeLanguage}
-                    onChange={(e) => setFormState({ ...formState, nativeLanguage: e.target.value })}
-                    className="select select-bordered w-full"
-                  >
-                    <option value="">Select your native language</option>
-                    {LANGUAGES.map((lang) => (
-                      <option key={`native-${lang}`} value={lang.toLowerCase()}>
-                        {lang}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* NATIVE LANGUAGE */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text">Native Language</span>
+                </label>
+                <select
+                  name="nativeLanguage"
+                  value={formState.nativeLanguage}
+                  onChange={(e) => setFormState({ ...formState, nativeLanguage: e.target.value })}
+                  className="select select-bordered w-full"
+                >
+                  <option value="">Select your native language</option>
+                  {LANGUAGES.map((lang) => (
+                    <option key={`native-${lang}`} value={lang.toLowerCase()}>
+                      {lang}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                {/* LEARNING LANGUAGE */}
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">Learning Language</span>
-                  </label>
-                  <select
-                    name="learningLanguage"
-                    value={formState.learningLanguage}
-                    onChange={(e) =>
-                      setFormState({ ...formState, learningLanguage: e.target.value })
-                    }
-                    className="select select-bordered w-full"
-                  >
-                    <option value="">Select language you're learning</option>
-                    {LANGUAGES.map((lang) => (
-                      <option key={`learning-${lang}`} value={lang.toLowerCase()}>
-                        {lang}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* LEARNING LANGUAGE */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text">Learning Language</span>
+                </label>
+                <select
+                  name="learningLanguage"
+                  value={formState.learningLanguage}
+                  onChange={(e) =>
+                    setFormState({ ...formState, learningLanguage: e.target.value })
+                  }
+                  className="select select-bordered w-full"
+                >
+                  <option value="">Select language you're learning</option>
+                  {LANGUAGES.map((lang) => (
+                    <option key={`learning-${lang}`} value={lang.toLowerCase()}>
+                      {lang}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* LOCATION */}

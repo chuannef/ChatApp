@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { completeOnboarding } from "../lib/api";
 import { CameraIcon, LoaderIcon, MapPinIcon, ShipWheelIcon, ShuffleIcon } from "lucide-react";
 import { LANGUAGES } from "../constants";
+import { pickRandomAvatar } from "../lib/avatar";
 
 const OnboardingPage = () => {
   const { authUser } = useAuthUser();
@@ -38,10 +39,7 @@ const OnboardingPage = () => {
   };
 
   const handleRandomAvatar = () => {
-    const idx = Math.floor(Math.random() * 100) + 1; // 1-100 included
-    const randomAvatar = `https://avatar.iran.liara.run/public/${idx}.png`;
-
-    setFormState({ ...formState, profilePic: randomAvatar });
+    setFormState({ ...formState, profilePic: pickRandomAvatar() });
     toast.success("Random profile picture generated!");
   };
 
@@ -107,47 +105,44 @@ const OnboardingPage = () => {
               />
             </div>
 
-            {/* LANGUAGES */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* NATIVE LANGUAGE */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Native Language</span>
-                </label>
-                <select
-                  name="nativeLanguage"
-                  value={formState.nativeLanguage}
-                  onChange={(e) => setFormState({ ...formState, nativeLanguage: e.target.value })}
-                  className="select select-bordered w-full"
-                >
-                  <option value="">Select your native language</option>
-                  {LANGUAGES.map((lang) => (
-                    <option key={`native-${lang}`} value={lang.toLowerCase()}>
-                      {lang}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* NATIVE LANGUAGE */}
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">Native Language</span>
+              </label>
+              <select
+                name="nativeLanguage"
+                value={formState.nativeLanguage}
+                onChange={(e) => setFormState({ ...formState, nativeLanguage: e.target.value })}
+                className="select select-bordered w-full"
+              >
+                <option value="">Select your native language</option>
+                {LANGUAGES.map((lang) => (
+                  <option key={`native-${lang}`} value={lang.toLowerCase()}>
+                    {lang}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              {/* LEARNING LANGUAGE */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Learning Language</span>
-                </label>
-                <select
-                  name="learningLanguage"
-                  value={formState.learningLanguage}
-                  onChange={(e) => setFormState({ ...formState, learningLanguage: e.target.value })}
-                  className="select select-bordered w-full"
-                >
-                  <option value="">Select language you're learning</option>
-                  {LANGUAGES.map((lang) => (
-                    <option key={`learning-${lang}`} value={lang.toLowerCase()}>
-                      {lang}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* LEARNING LANGUAGE */}
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">Learning Language</span>
+              </label>
+              <select
+                name="learningLanguage"
+                value={formState.learningLanguage}
+                onChange={(e) => setFormState({ ...formState, learningLanguage: e.target.value })}
+                className="select select-bordered w-full"
+              >
+                <option value="">Select language you're learning</option>
+                {LANGUAGES.map((lang) => (
+                  <option key={`learning-${lang}`} value={lang.toLowerCase()}>
+                    {lang}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* LOCATION */}

@@ -26,6 +26,12 @@ const groupSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    pendingJoinRequests: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     isPublic: {
       type: Boolean,
       default: true, // Public groups can be joined by anyone

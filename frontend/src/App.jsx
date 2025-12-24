@@ -10,6 +10,7 @@ import OnboardingPage from "./pages/OnboardingPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import FriendsPage from "./pages/FriendsPage.jsx";
 import GroupsPage from "./pages/GroupsPage.jsx";
+import GroupRoomPage from "./pages/GroupRoomPage.jsx";
 
 import { Toaster } from "react-hot-toast";
 
@@ -137,6 +138,19 @@ const App = () => {
             isAuthenticated && isOnboarded ? (
               <Layout showSidebar={true}>
                 <GroupsPage />
+              </Layout>
+            ) : (
+              <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+            )
+          }
+        />
+
+        <Route
+          path="/groups/:id"
+          element={
+            isAuthenticated && isOnboarded ? (
+              <Layout showSidebar={true}>
+                <GroupRoomPage />
               </Layout>
             ) : (
               <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />

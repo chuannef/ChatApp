@@ -1,6 +1,7 @@
 import { upsertStreamUser } from "../lib/stream.js";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
+import { pickRandomAvatarPath } from "../lib/randomAvatars.js";
 
 export async function signup(req, res) {
   const { email, password, fullName } = req.body;
@@ -25,8 +26,7 @@ export async function signup(req, res) {
       return res.status(400).json({ message: "Email already exists, please use a diffrent one" });
     }
 
-    const idx = Math.floor(Math.random() * 100) + 1; // generate a num between 1-100
-    const randomAvatar = `https://avatar.iran.liara.run/public/${idx}.png`;
+    const randomAvatar = pickRandomAvatarPath();
 
     const newUser = await User.create({
       email,
