@@ -30,6 +30,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://chatapp-ab.onrender.com",
+  "https://chat-app-brxz.onrender.com",
+  process.env.RENDER_EXTERNAL_URL,
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
