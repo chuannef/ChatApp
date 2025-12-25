@@ -246,6 +246,61 @@ export function initSocket(httpServer, allowedOrigins = []) {
         return typeof ack === "function" ? ack({ ok: false, message: "Failed to delete message" }) : undefined;
       }
     });
+
+    socket.on("message:edit", async ({ messageId, text } = {}, ack) => {
+      try {
+        const myId = socket.user.id;
+
+        if (!mongoose.Types.ObjectId.isValid(String(messageId))) {
+          return typeof ack === "function" ? ack({ ok: false, message: "Invalid message id" }) : undefined;
+        }
+
+        const trimmed = String(text || "").trim();
+        if (!trimmed) {
+          return typeof ack === "function" ? ack({ ok: false, message: "Message is empty" }) : undefined;
+        }
+        if (trimmed.length > 2000) {
+          return typeof ack === "function" ? ack({ ok: false, message: "Message is too long" }) : undefined;
+        }
+
+        const existing = await Message.findById(messageId).select("kind roomId sender group").lean();
+        if (!existing) {
+          return typeof ack === "function" ? ack({ ok: false, message: "Message not found" }) : undefined;
+        }
+
+        // Only the sender can edit their message (MVP).
+        const isSender = String(existing.sender) === String(myId);
+        if (!isSender) {
+          return typeof ack === "function" ? ack({ ok: false, message: "Not allowed" }) : undefined;
+        }
+
+        if (existing.kind === "group") {
+          const group = await Group.findById(existing.group).select("members admin").lean();
+          const isMember = Array.isArray(group?.members) && group.members.some((id) => id.toString() === String(myId));
+          const isGroupAdmin = String(group?.admin || "") === String(myId);
+          if (!isMember && !isGroupAdmin) {
+            return typeof ack === "function" ? ack({ ok: false, message: "Not allowed" }) : undefined;
+          }
+        }
+
+        const updated = await Message.findByIdAndUpdate(
+          messageId,
+          { text: trimmed },
+          { new: true, runValidators: true }
+        ).populate("sender", "fullName profilePic");
+
+        if (!updated) {
+          return typeof ack === "function" ? ack({ ok: false, message: "Message not found" }) : undefined;
+        }
+
+        stripBase64SenderAvatar(updated);
+
+        io.to(existing.roomId).emit("message:updated", { roomId: existing.roomId, message: updated });
+        return typeof ack === "function" ? ack({ ok: true }) : undefined;
+      } catch (e) {
+        return typeof ack === "function" ? ack({ ok: false, message: "Failed to edit message" }) : undefined;
+      }
+    });
   });
 
   return io;

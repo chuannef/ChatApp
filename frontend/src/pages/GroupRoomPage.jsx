@@ -19,7 +19,7 @@ import {
 import { getUserAvatarSrc } from "../lib/avatar";
 import { getSocket } from "../lib/socket";
 
-import { CheckIcon, TrashIcon, ImageIcon } from "lucide-react";
+import { CheckIcon, TrashIcon, ImageIcon, PencilIcon, XIcon } from "lucide-react";
 
 const GroupRoomPage = () => {
   const { id: groupId } = useParams();
@@ -31,6 +31,9 @@ const GroupRoomPage = () => {
   const [chatError, setChatError] = useState("");
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+  const [selectedMessageId, setSelectedMessageId] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingText, setEditingText] = useState("");
   const endRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -196,11 +199,20 @@ const GroupRoomPage = () => {
     const onDeletedMessage = ({ roomId: incomingRoomId, messageId }) => {
       if (incomingRoomId !== `group-${groupId}`) return;
       setMessages((prev) => prev.filter((m) => String(m._id) !== String(messageId)));
+      setSelectedMessageId((prev) => (String(prev) === String(messageId) ? null : prev));
+      setEditingMessageId((prev) => (String(prev) === String(messageId) ? null : prev));
+    };
+
+    const onUpdatedMessage = ({ roomId: incomingRoomId, message }) => {
+      if (incomingRoomId !== `group-${groupId}`) return;
+      if (!message?._id) return;
+      setMessages((prev) => prev.map((m) => (String(m._id) === String(message._id) ? { ...m, ...message } : m)));
     };
 
     socket.on("connect_error", onConnectError);
     socket.on("message:new", onNewMessage);
     socket.on("message:deleted", onDeletedMessage);
+    socket.on("message:updated", onUpdatedMessage);
 
     socket.emit("group:join", { groupId }, (ack) => {
       if (!ack?.ok) {
@@ -215,6 +227,7 @@ const GroupRoomPage = () => {
       socket.off("connect_error", onConnectError);
       socket.off("message:new", onNewMessage);
       socket.off("message:deleted", onDeletedMessage);
+      socket.off("message:updated", onUpdatedMessage);
     };
   }, [authUser?._id, groupId, group, activeTab, historyLoading, historyIsError, historyError]);
 
@@ -277,6 +290,47 @@ const GroupRoomPage = () => {
       if (!ack?.ok) {
         toast.error(ack?.message || "Failed to delete message");
       }
+    });
+  };
+
+  const toggleSelectMessage = (messageId) => {
+    const id = String(messageId || "");
+    if (!id) return;
+    setSelectedMessageId((prev) => (String(prev) === id ? null : id));
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const beginEditMessage = (message) => {
+    if (!message?._id) return;
+    const currentText = String(message.text || "");
+    setSelectedMessageId(String(message._id));
+    setEditingMessageId(String(message._id));
+    setEditingText(currentText);
+  };
+
+  const cancelEditMessage = () => {
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const saveEditMessage = (messageId) => {
+    const trimmed = editingText.trim();
+    if (!trimmed) {
+      toast.error("Message cannot be empty");
+      return;
+    }
+
+    const socket = getSocket();
+    socket.emit("message:edit", { messageId, text: trimmed }, (ack) => {
+      if (!ack?.ok) {
+        toast.error(ack?.message || "Failed to edit message");
+        return;
+      }
+
+      setMessages((prev) => prev.map((m) => (String(m._id) === String(messageId) ? { ...m, text: trimmed } : m)));
+      setEditingMessageId(null);
+      setEditingText("");
     });
   };
 
@@ -368,6 +422,10 @@ const GroupRoomPage = () => {
                       messages.map((m) => {
                         const isMine = String(m.sender?._id || m.sender) === String(authUser?._id);
                         const canDelete = isMine || isAdmin;
+                        const id = m._id ? String(m._id) : "";
+                        const isSelected = Boolean(id) && String(selectedMessageId) === id;
+                        const isEditing = Boolean(id) && String(editingMessageId) === id;
+                        const canEdit = isMine && Boolean(m.text) && Boolean(m._id);
                         return (
                           <div key={m._id || `${m.createdAt}-${m.text}`} className={`chat ${isMine ? "chat-end" : "chat-start"}`}>
                             <div className="chat-image avatar">
@@ -376,15 +434,49 @@ const GroupRoomPage = () => {
                               </div>
                             </div>
                             <div className="chat-header opacity-70 text-xs">{m.sender?.fullName || ""}</div>
-                            <div className={`chat-bubble ${isMine ? "chat-bubble-primary" : ""}`}>
+                            <div
+                              className={`chat-bubble ${isMine ? "chat-bubble-primary" : ""} ${m._id ? "cursor-pointer" : ""}`}
+                              onClick={() => (m._id ? toggleSelectMessage(m._id) : undefined)}
+                            >
                               {m.image ? <img src={m.image} alt="sent" className="max-w-[240px] rounded" /> : null}
-                              {m.text ? <div className={m.image ? "mt-2" : ""}>{m.text}</div> : null}
 
-                              {canDelete && m._id ? (
-                                <div className="mt-2 flex justify-end">
-                                  <button type="button" className="btn btn-ghost btn-xs" onClick={() => deleteMessage(m._id)}>
-                                    <TrashIcon className="size-4" />
-                                  </button>
+                              {m.text ? (
+                                isEditing ? (
+                                  <div className={m.image ? "mt-2" : ""}>
+                                    <textarea
+                                      className="textarea textarea-bordered w-full"
+                                      value={editingText}
+                                      onChange={(e) => setEditingText(e.target.value)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      rows={2}
+                                    />
+
+                                    <div className="mt-2 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                      <button type="button" className="btn btn-primary btn-xs" onClick={() => saveEditMessage(m._id)}>
+                                        <CheckIcon className="size-4" />
+                                      </button>
+                                      <button type="button" className="btn btn-ghost btn-xs" onClick={cancelEditMessage}>
+                                        <XIcon className="size-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className={m.image ? "mt-2" : ""}>{m.text}</div>
+                                )
+                              ) : null}
+
+                              {isSelected && m._id && !isEditing ? (
+                                <div className="mt-2 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                  {canEdit ? (
+                                    <button type="button" className="btn btn-ghost btn-xs" onClick={() => beginEditMessage(m)}>
+                                      <PencilIcon className="size-4" />
+                                    </button>
+                                  ) : null}
+                                  {canDelete ? (
+                                    <button type="button" className="btn btn-ghost btn-xs" onClick={() => deleteMessage(m._id)}>
+                                      <TrashIcon className="size-4" />
+                                    </button>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </div>
