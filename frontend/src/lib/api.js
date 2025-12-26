@@ -65,6 +65,11 @@ export async function getUserFriends() {
   return response.data;
 }
 
+export async function removeFriend(userId) {
+  const response = await axiosInstance.delete(`/users/friends/${userId}`);
+  return response.data;
+}
+
 export async function getRecommendedUsers() {
   const response = await axiosInstance.get("/users");
   return response.data;
@@ -87,6 +92,27 @@ export async function getFriendRequests() {
 
 export async function acceptFriendRequest(requestId) {
   const response = await axiosInstance.put(`/users/friend-request/${requestId}/accept`);
+  return response.data;
+}
+
+export async function declineFriendRequest(requestId) {
+  const response = await axiosInstance.put(`/users/friend-request/${requestId}/decline`);
+  return response.data;
+}
+
+// Group invitations (Notifications)
+export async function getGroupInvitations() {
+  const response = await axiosInstance.get("/users/group-invitations");
+  return response.data;
+}
+
+export async function acceptGroupInvitation(invitationId) {
+  const response = await axiosInstance.put(`/users/group-invitations/${invitationId}/accept`);
+  return response.data;
+}
+
+export async function declineGroupInvitation(invitationId) {
+  const response = await axiosInstance.put(`/users/group-invitations/${invitationId}/decline`);
   return response.data;
 }
 

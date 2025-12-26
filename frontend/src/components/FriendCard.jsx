@@ -4,7 +4,7 @@ import { LANGUAGE_TO_FLAG } from "../constants";
 import { getUserAvatarSrc } from "../lib/avatar";
 import { getDmMessages } from "../lib/api";
 
-const FriendCard = ({ friend }) => {
+const FriendCard = ({ friend, onRemove, isRemoving = false }) => {
   const queryClient = useQueryClient();
 
   const prefetchDm = () => {
@@ -46,15 +46,29 @@ const FriendCard = ({ friend }) => {
           </span>
         </div>
 
-        <Link
-          to={`/chat/${friend?._id || ""}`}
-          className="btn btn-outline w-full"
-          aria-disabled={!friend?._id}
-          onMouseEnter={prefetchDm}
-          onFocus={prefetchDm}
-        >
-          Message
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            to={`/chat/${friend?._id || ""}`}
+            className="btn btn-outline flex-1"
+            aria-disabled={!friend?._id}
+            onMouseEnter={prefetchDm}
+            onFocus={prefetchDm}
+          >
+            Message
+          </Link>
+
+          {typeof onRemove === "function" && (
+            <button
+              type="button"
+              className="btn btn-outline btn-error"
+              onClick={() => onRemove(friend?._id)}
+              disabled={!friend?._id || isRemoving}
+              title="Remove friend"
+            >
+              {isRemoving ? <span className="loading loading-spinner loading-xs" /> : "Remove"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

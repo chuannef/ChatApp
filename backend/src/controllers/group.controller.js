@@ -1,5 +1,6 @@
 import Group from "../models/Group.js";
 import User from "../models/User.js";
+import GroupInvitation from "../models/GroupInvitation.js";
 
 function stripBase64ProfilePic(doc) {
   if (!doc) return doc;
@@ -41,22 +42,22 @@ export async function createGroup(req, res) {
       return res.status(400).json({ message: "Group name and member IDs are required" });
     }
 
-    // Add admin to members if not already included
-    const allMemberIds = [...new Set([adminId, ...memberIds])];
+    // Treat memberIds as *invitees* (they will choose to join or decline via Notifications).
+    const inviteeIds = [...new Set(memberIds.map(String))].filter((id) => id !== String(adminId));
 
-    // Check minimum 3 members
-    if (allMemberIds.length < 3) {
-      return res.status(400).json({ 
-        message: "A group must have at least 3 members (including you)" 
+    // Keep existing UI/business rule: require inviting at least 2 friends.
+    if (inviteeIds.length < 2) {
+      return res.status(400).json({
+        message: "Please invite at least 2 friends to create a group",
       });
     }
 
-    // Verify all members exist
-    const membersExist = await User.countDocuments({
-      _id: { $in: allMemberIds },
+    // Verify all invitees exist
+    const inviteesExist = await User.countDocuments({
+      _id: { $in: inviteeIds },
     });
 
-    if (membersExist !== allMemberIds.length) {
+    if (inviteesExist !== inviteeIds.length) {
       return res.status(400).json({ message: "One or more members not found" });
     }
 
@@ -64,8 +65,22 @@ export async function createGroup(req, res) {
       name,
       description: description || "",
       admin: adminId,
-      members: allMemberIds,
+      members: [adminId],
     });
+
+    // Create pending invitations for invitees
+    if (inviteeIds.length) {
+      await GroupInvitation.insertMany(
+        inviteeIds.map((recipient) => ({
+          group: group._id,
+          sender: adminId,
+          recipient,
+        })),
+        { ordered: false }
+      ).catch(() => {
+        // ignore duplicate errors; invitations are best-effort
+      });
+    }
 
     const populatedGroup = await Group.findById(group._id)
       .populate("admin", "fullName profilePic")

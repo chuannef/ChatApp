@@ -40,10 +40,14 @@ const groupSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Ensure minimum 3 members (including admin) when creating
+// Ensure the group always has an admin as a member.
 groupSchema.pre("save", function (next) {
-  if (this.isNew && this.members.length < 3) {
-    next(new Error("A group must have at least 3 members"));
+  if (this.admin && Array.isArray(this.members)) {
+    const adminId = this.admin.toString();
+    const hasAdmin = this.members.some((m) => m?.toString?.() === adminId);
+    if (!hasAdmin) {
+      this.members.unshift(this.admin);
+    }
   }
   next();
 });

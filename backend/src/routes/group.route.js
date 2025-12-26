@@ -13,6 +13,7 @@ import {
   rejectJoinRequest,
   removeMember,
 } from "../controllers/group.controller.js";
+import { sendGroupInvitation } from "../controllers/groupInvitation.controller.js";
 import {
   listAssignments,
   createAssignment,
@@ -40,6 +41,9 @@ router.post("/:id/assignments/:assignmentId/complete", setAssignmentCompletion);
 
 // Create group
 router.post("/", createGroup);
+
+// Admin: send invitations
+router.post("/:id/invitations/:userId", sendGroupInvitation);
 
 // Join/Leave group
 router.post("/:id/join", joinGroup);
