@@ -22,9 +22,18 @@ const ProfilePage = () => {
 
   const { mutate: updateProfileMutation, isPending } = useMutation({
     mutationFn: completeOnboarding,
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Profile updated successfully");
+
+      if (data?.user) {
+        queryClient.setQueryData(["authUser"], { success: true, user: data.user });
+      }
+
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
+      queryClient.invalidateQueries({ queryKey: ["myGroups"] });
+      queryClient.invalidateQueries({ queryKey: ["availableGroups"] });
+      queryClient.invalidateQueries({ queryKey: ["group"] });
     },
 
     onError: (error) => {
@@ -46,10 +55,15 @@ const ProfilePage = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image is too large (max 2MB)");
+      return;
+    }
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setFormState({ ...formState, profilePic: reader.result });
-      toast.success("Profile picture uploaded!");
+      toast.success("Image selected. Click Save Changes to apply.");
     };
     reader.readAsDataURL(file);
   };

@@ -28,11 +28,14 @@ export function getUserAvatarSrc(user) {
     if (src.startsWith("data:image/")) return src;
     if (src.startsWith("blob:")) return src;
 
+    // allow absolute URLs (e.g. backend-served uploads)
+    if (/^https?:\/\//i.test(src)) return src;
+
     // if already local random avatar, keep
     if (src.startsWith(RANDOM_AVATAR_PREFIX)) return src;
 
     // if it's not an external URL, keep (e.g. relative local path)
-    if (!/^https?:\/\//i.test(src)) return src;
+    return src;
   }
 
   const seed = String(user?._id || user?.email || user?.fullName || "");

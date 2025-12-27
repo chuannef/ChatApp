@@ -17,8 +17,5 @@
   "bugs": {
     "url": "https://github.com/chuannef/ChatApp/issues"
   },
-  "homepage": "https://github.com/chuannef/ChatApp#readme",
-  "dependencies": {
-    "daisyui": "^5.5.5"
-  }
+  "homepage": "https://github.com/chuannef/ChatApp#readme"
 }

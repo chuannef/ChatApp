@@ -15,11 +15,13 @@ import {
   approveGroupJoinRequest,
   rejectGroupJoinRequest,
   removeGroupMember,
+  uploadChatFile,
 } from "../lib/api";
 import { getUserAvatarSrc } from "../lib/avatar";
 import { getSocket } from "../lib/socket";
 
-import { CheckIcon, TrashIcon, ImageIcon, PencilIcon, XIcon } from "lucide-react";
+import { CheckIcon, TrashIcon, PaperclipIcon, PencilIcon, XIcon } from "lucide-react";
+import JSZip from "jszip";
 
 const GroupRoomPage = () => {
   const { id: groupId } = useParams();
@@ -35,6 +37,10 @@ const GroupRoomPage = () => {
   const [editingText, setEditingText] = useState("");
   const endRef = useRef(null);
   const fileInputRef = useRef(null);
+  const anyFileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
+
+  const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
   const {
     data: group,
@@ -248,36 +254,95 @@ const GroupRoomPage = () => {
     });
   };
 
-  const sendImage = async (file) => {
+  const sendAttachment = async (file, kind) => {
     try {
       if (!file) return;
-      if (!file.type?.startsWith("image/")) {
-        toast.error("Please select an image file");
+      if (!groupId) return;
+
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast.error("File is too large (max 100MB)");
         return;
       }
 
-      if (file.size > 700 * 1024) {
-        toast.error("Image is too large (max ~700KB)");
-        return;
-      }
-
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("Failed to read image"));
-        reader.readAsDataURL(file);
-      });
-
+      const uploaded = await uploadChatFile(file);
       const socket = getSocket();
-      socket.emit("message:send", { kind: "group", groupId, image: dataUrl }, (ack) => {
-        if (!ack?.ok) {
-          toast.error(ack?.message || "Failed to send image");
+      socket.emit(
+        "message:send",
+        {
+          kind: "group",
+          groupId,
+          attachment: {
+            url: uploaded?.url,
+            path: uploaded?.path,
+            name: uploaded?.name || file.name,
+            size: uploaded?.size || file.size,
+            type: uploaded?.type || file.type,
+            kind,
+          },
+        },
+        (ack) => {
+          if (!ack?.ok) {
+            toast.error(ack?.message || "Failed to send file");
+          }
         }
-      });
+      );
     } catch (err) {
-      toast.error(err?.message || "Failed to send image");
+      toast.error(err?.response?.data?.message || err?.message || "Failed to send file");
     } finally {
+      if (anyFileInputRef.current) anyFileInputRef.current.value = "";
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (folderInputRef.current) folderInputRef.current.value = "";
+    }
+  };
+
+  const sendImage = async (file) => {
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    await sendAttachment(file, "image");
+  };
+
+  const sendFile = async (file) => {
+    if (!file) return;
+    await sendAttachment(file, "file");
+  };
+
+  const sendFolder = async (fileList) => {
+    try {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+      if (!groupId) return;
+
+      toast.loading("Preparing folder...", { id: "zip-folder" });
+
+      const zip = new JSZip();
+      const firstRel = files[0]?.webkitRelativePath || files[0]?.name || "folder";
+      const folderName = String(firstRel).split("/")[0] || "folder";
+
+      for (const f of files) {
+        const rel = f.webkitRelativePath || f.name;
+        const cleanRel = String(rel || "").replace(/^\/+/, "");
+        zip.file(cleanRel, f);
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const zipped = new File([blob], `${folderName}.zip`, { type: "application/zip" });
+
+      toast.dismiss("zip-folder");
+
+      if (zipped.size > MAX_UPLOAD_BYTES) {
+        toast.error("Folder is too large after zip (max 100MB)");
+        return;
+      }
+
+      await sendAttachment(zipped, "folder");
+    } catch (err) {
+      toast.dismiss("zip-folder");
+      toast.error(err?.message || "Failed to zip folder");
+    } finally {
+      if (folderInputRef.current) folderInputRef.current.value = "";
     }
   };
 
@@ -435,7 +500,27 @@ const GroupRoomPage = () => {
                               className={`chat-bubble ${isMine ? "chat-bubble-primary" : ""} ${m._id ? "cursor-pointer" : ""}`}
                               onClick={() => (m._id ? toggleSelectMessage(m._id) : undefined)}
                             >
-                              {m.image ? <img src={m.image} alt="sent" className="max-w-[240px] rounded" /> : null}
+                              {m.attachment?.url ? (
+                                m.attachment?.type?.startsWith?.("image/") || m.attachment?.kind === "image" ? (
+                                  <img
+                                    src={m.attachment.url}
+                                    alt={m.attachment?.name || "attachment"}
+                                    className="max-w-[240px] rounded"
+                                  />
+                                ) : (
+                                  <a
+                                    href={m.attachment.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="link"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {m.attachment?.name || "Download file"}
+                                  </a>
+                                )
+                              ) : m.image ? (
+                                <img src={m.image} alt="sent" className="max-w-[240px] rounded" />
+                              ) : null}
 
                               {m.text ? (
                                 isEditing ? (
@@ -493,14 +578,44 @@ const GroupRoomPage = () => {
                         className="hidden"
                         onChange={(e) => sendImage(e.target.files?.[0])}
                       />
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={() => fileInputRef.current?.click()}
-                        title="Send image"
-                      >
-                        <ImageIcon className="size-5" />
-                      </button>
+                      <input
+                        ref={anyFileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => sendFile(e.target.files?.[0])}
+                      />
+                      <input
+                        ref={folderInputRef}
+                        type="file"
+                        className="hidden"
+                        webkitdirectory=""
+                        directory=""
+                        multiple
+                        onChange={(e) => sendFolder(e.target.files)}
+                      />
+
+                      <div className="dropdown dropdown-top">
+                        <button type="button" tabIndex={0} className="btn btn-ghost" title="Attach">
+                          <PaperclipIcon className="size-5" />
+                        </button>
+                        <ul tabIndex={0} className="dropdown-content menu p-2 shadow bg-base-200 rounded-box w-44">
+                          <li>
+                            <button type="button" onClick={() => fileInputRef.current?.click()}>
+                              Image
+                            </button>
+                          </li>
+                          <li>
+                            <button type="button" onClick={() => anyFileInputRef.current?.click()}>
+                              File
+                            </button>
+                          </li>
+                          <li>
+                            <button type="button" onClick={() => folderInputRef.current?.click()}>
+                              Folder
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
                       <input
                         className="input input-bordered flex-1"
                         placeholder="Type a message"

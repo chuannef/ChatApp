@@ -40,6 +40,18 @@ const messageSchema = new mongoose.Schema(
       default: "",
       maxlength: 1_000_000,
     },
+    attachment: {
+      url: { type: String, default: "" },
+      path: { type: String, default: "" },
+      name: { type: String, default: "" },
+      size: { type: Number, default: 0 },
+      type: { type: String, default: "" },
+      kind: {
+        type: String,
+        enum: ["file", "folder", "image"],
+        default: "file",
+      },
+    },
   },
   { timestamps: true }
 );

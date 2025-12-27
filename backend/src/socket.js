@@ -28,6 +28,39 @@ function stripBase64SenderAvatar(messageDoc) {
   }
 }
 
+const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024; // 100MB
+
+function normalizeAttachment(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  const url = typeof raw.url === "string" ? raw.url.trim() : "";
+  const path = typeof raw.path === "string" ? raw.path.trim() : "";
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  const type = typeof raw.type === "string" ? raw.type.trim() : "";
+  const size = typeof raw.size === "number" ? raw.size : Number(raw.size);
+  const kind = typeof raw.kind === "string" ? raw.kind : "file";
+
+  const normalizedKind = ["file", "folder", "image"].includes(kind) ? kind : "file";
+  const normalizedSize = Number.isFinite(size) ? size : 0;
+
+  if (!url) return null;
+  if (normalizedSize <= 0 || normalizedSize > MAX_ATTACHMENT_BYTES) return null;
+
+  // Only allow our own uploads path or absolute URLs.
+  // (We store what the upload endpoint returns; it uses /uploads/chat/*)
+  const allowed = url.startsWith("/uploads/chat/") || /^https?:\/\//i.test(url);
+  if (!allowed) return null;
+
+  return {
+    url,
+    path: path || "",
+    name: name || "",
+    size: normalizedSize,
+    type: type || "",
+    kind: normalizedKind,
+  };
+}
+
 export function initSocket(httpServer, allowedOrigins = []) {
   const io = new Server(httpServer, {
     cors: {
@@ -169,16 +202,19 @@ export function initSocket(httpServer, allowedOrigins = []) {
       }
     });
 
-    socket.on("message:send", async ({ kind, otherUserId, groupId, text, image } = {}, ack) => {
+    socket.on("message:send", async ({ kind, otherUserId, groupId, text, image, attachment } = {}, ack) => {
       try {
         const myId = socket.user.id;
         const trimmed = String(text || "").trim();
         const imageStr = typeof image === "string" ? image : "";
 
+        const normalizedAttachment = normalizeAttachment(attachment);
+
         const hasText = Boolean(trimmed);
         const hasImage = Boolean(imageStr);
+        const hasAttachment = Boolean(normalizedAttachment);
 
-        if (!hasText && !hasImage) {
+        if (!hasText && !hasImage && !hasAttachment) {
           return typeof ack === "function" ? ack({ ok: false, message: "Message is empty" }) : undefined;
         }
 
@@ -191,6 +227,10 @@ export function initSocket(httpServer, allowedOrigins = []) {
           if (imageStr.length > 1_000_000) {
             return typeof ack === "function" ? ack({ ok: false, message: "Image is too large" }) : undefined;
           }
+        }
+
+        if (attachment && !hasAttachment) {
+          return typeof ack === "function" ? ack({ ok: false, message: "File is too large (max 100MB)" }) : undefined;
         }
 
         if (kind === "dm") {
@@ -214,6 +254,7 @@ export function initSocket(httpServer, allowedOrigins = []) {
             recipient: otherUserId,
             text: trimmed,
             image: imageStr,
+            attachment: normalizedAttachment || undefined,
           });
 
           const populated = await message.populate("sender", "fullName profilePic");
@@ -243,6 +284,7 @@ export function initSocket(httpServer, allowedOrigins = []) {
             group: groupId,
             text: trimmed,
             image: imageStr,
+            attachment: normalizedAttachment || undefined,
           });
 
           const populated = await message.populate("sender", "fullName profilePic");

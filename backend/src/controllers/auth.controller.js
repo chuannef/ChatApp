@@ -2,6 +2,34 @@ import { upsertStreamUser } from "../lib/stream.js";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import { pickRandomAvatarPath } from "../lib/randomAvatars.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function parseDataUrlImage(dataUrl) {
+  if (typeof dataUrl !== "string") return null;
+  if (!dataUrl.startsWith("data:image/")) return null;
+
+  // dotAll so very long base64 strings are handled safely
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.+)$/s);
+  if (!match) return null;
+
+  const mime = match[1];
+  const base64 = match[2];
+  return { mime, base64 };
+}
+
+function extensionFromMime(mime) {
+  const m = String(mime || "").toLowerCase();
+  if (m === "image/jpeg" || m === "image/jpg") return "jpg";
+  if (m === "image/png") return "png";
+  if (m === "image/webp") return "webp";
+  if (m === "image/gif") return "gif";
+  return "png";
+}
 
 export async function signup(req, res) {
   const { email, password, fullName } = req.body;
@@ -120,14 +148,38 @@ export async function onboard(req, res) {
       });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        ...req.body,
-        isOnboarded: true,
-      },
-      { new: true }
-    );
+    // If profilePic is a base64 data URL, persist it as a file and store a URL.
+    const update = { ...req.body, isOnboarded: true };
+    const parsed = parseDataUrlImage(update.profilePic);
+    if (parsed) {
+      const ext = extensionFromMime(parsed.mime);
+      const uploadsDir = path.join(__dirname, "../uploads");
+      try {
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+
+        const normalizedBase64 = String(parsed.base64 || "").replace(/\s/g, "");
+        const buf = Buffer.from(normalizedBase64, "base64");
+        // Basic guardrail: reject very large avatars (keeps responses/snappiness reasonable)
+        if (buf.length > 2 * 1024 * 1024) {
+          return res.status(400).json({ message: "Profile picture is too large (max 2MB)" });
+        }
+
+        const filename = `avatar-${userId}-${Date.now()}.${ext}`;
+        const filePath = path.join(uploadsDir, filename);
+        fs.writeFileSync(filePath, buf);
+
+        const baseUrl = `${req.protocol}://${req.get("host")}`;
+        update.profilePic = `${baseUrl}/uploads/${filename}`;
+      } catch (e) {
+        console.log("Avatar save failed:", e?.message || e);
+        // Don't silently keep base64 (other APIs strip it and users think it didn't update)
+        return res.status(500).json({ message: "Could not save profile picture. Please try a smaller image." });
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(userId, update, { new: true });
 
     if (!updatedUser) return res.status(404).json({ message: "User not found" });
 

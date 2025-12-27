@@ -2,14 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
 import { useQuery } from "@tanstack/react-query";
-import { getDmMessages, getUserFriends } from "../lib/api";
+import { getDmMessages, getUserFriends, uploadChatFile } from "../lib/api";
 import toast from "react-hot-toast";
+import JSZip from "jszip";
 
 import ChatLoader from "../components/ChatLoader";
 import CallButton from "../components/CallButton";
 import { getUserAvatarSrc } from "../lib/avatar";
 import { getSocket } from "../lib/socket";
-import { ImageIcon, TrashIcon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
+import { PaperclipIcon, TrashIcon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
 import { usePresenceStore } from "../store/usePresenceStore";
 
 function dmRoomId(userIdA, userIdB) {
@@ -29,6 +30,10 @@ const ChatPage = () => {
   const [editingText, setEditingText] = useState("");
   const endRef = useRef(null);
   const fileInputRef = useRef(null);
+  const anyFileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
+
+  const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
   const { authUser } = useAuthUser();
   const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
@@ -170,44 +175,96 @@ const ChatPage = () => {
     );
   };
 
-  const sendImage = async (file) => {
+  const sendAttachment = async (file, kind) => {
     try {
       if (!file) return;
       if (!roomId) return;
 
-      if (!file.type?.startsWith("image/")) {
-        toast.error("Please select an image file");
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast.error("File is too large (max 100MB)");
         return;
       }
 
-      // limit ~700KB raw to reduce DB bloat (data URL expands size)
-      if (file.size > 700 * 1024) {
-        toast.error("Image is too large (max ~700KB)");
-        return;
-      }
-
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("Failed to read image"));
-        reader.readAsDataURL(file);
-      });
+      const uploaded = await uploadChatFile(file);
 
       const socket = getSocket();
       socket.emit(
         "message:send",
-        { kind: "dm", otherUserId: targetUserId, image: dataUrl },
+        {
+          kind: "dm",
+          otherUserId: targetUserId,
+          attachment: {
+            url: uploaded?.url,
+            path: uploaded?.path,
+            name: uploaded?.name || file.name,
+            size: uploaded?.size || file.size,
+            type: uploaded?.type || file.type,
+            kind,
+          },
+        },
         (ack) => {
           if (!ack?.ok) {
-            toast.error(ack?.message || "Failed to send image");
-            return;
+            toast.error(ack?.message || "Failed to send file");
           }
         }
       );
     } catch (err) {
-      toast.error(err?.message || "Failed to send image");
+      toast.error(err?.response?.data?.message || err?.message || "Failed to send file");
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (anyFileInputRef.current) anyFileInputRef.current.value = "";
+      if (folderInputRef.current) folderInputRef.current.value = "";
+    }
+  };
+
+  const sendImage = async (file) => {
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    await sendAttachment(file, "image");
+  };
+
+  const sendFile = async (file) => {
+    if (!file) return;
+    await sendAttachment(file, "file");
+  };
+
+  const sendFolder = async (fileList) => {
+    try {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+      if (!roomId) return;
+
+      toast.loading("Preparing folder...", { id: "zip-folder" });
+
+      const zip = new JSZip();
+      const firstRel = files[0]?.webkitRelativePath || files[0]?.name || "folder";
+      const folderName = String(firstRel).split("/")[0] || "folder";
+
+      for (const f of files) {
+        const rel = f.webkitRelativePath || f.name;
+        const cleanRel = String(rel || "").replace(/^\/+/, "");
+        zip.file(cleanRel, f);
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const zipped = new File([blob], `${folderName}.zip`, { type: "application/zip" });
+
+      toast.dismiss("zip-folder");
+
+      if (zipped.size > MAX_UPLOAD_BYTES) {
+        toast.error("Folder is too large after zip (max 100MB)");
+        return;
+      }
+
+      await sendAttachment(zipped, "folder");
+    } catch (err) {
+      toast.dismiss("zip-folder");
+      toast.error(err?.message || "Failed to zip folder");
+    } finally {
+      if (folderInputRef.current) folderInputRef.current.value = "";
     }
   };
 
@@ -313,6 +370,7 @@ const ChatPage = () => {
             const isSelected = Boolean(id) && String(selectedMessageId) === id;
             const isEditing = Boolean(id) && String(editingMessageId) === id;
             const canEdit = isMine && Boolean(m.text) && Boolean(m._id);
+            const hasMedia = Boolean(m.image || m.attachment?.url);
             return (
               <div key={m._id || `${m.createdAt}-${m.text}`} className={`chat ${isMine ? "chat-end" : "chat-start"}`}>
                 <div className="chat-image avatar">
@@ -325,13 +383,27 @@ const ChatPage = () => {
                   className={`chat-bubble ${isMine ? "chat-bubble-primary" : ""} ${m._id ? "cursor-pointer" : ""}`}
                   onClick={() => (m._id ? toggleSelectMessage(m._id) : undefined)}
                 >
-                  {m.image ? (
+                  {m.attachment?.url ? (
+                    m.attachment?.type?.startsWith?.("image/") || m.attachment?.kind === "image" ? (
+                      <img src={m.attachment.url} alt={m.attachment?.name || "attachment"} className="max-w-[240px] rounded" />
+                    ) : (
+                      <a
+                        href={m.attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="link"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {m.attachment?.name || "Download file"}
+                      </a>
+                    )
+                  ) : m.image ? (
                     <img src={m.image} alt="sent" className="max-w-[240px] rounded" />
                   ) : null}
 
                   {m.text ? (
                     isEditing ? (
-                      <div className={m.image ? "mt-2" : ""}>
+                      <div className={hasMedia ? "mt-2" : ""}>
                         <textarea
                           className="textarea textarea-bordered w-full"
                           value={editingText}
@@ -350,7 +422,7 @@ const ChatPage = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className={m.image ? "mt-2" : ""}>{m.text}</div>
+                      <div className={hasMedia ? "mt-2" : ""}>{m.text}</div>
                     )
                   ) : null}
 
@@ -383,14 +455,44 @@ const ChatPage = () => {
             className="hidden"
             onChange={(e) => sendImage(e.target.files?.[0])}
           />
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => fileInputRef.current?.click()}
-            title="Send image"
-          >
-            <ImageIcon className="size-5" />
-          </button>
+          <input
+            ref={anyFileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => sendFile(e.target.files?.[0])}
+          />
+          <input
+            ref={folderInputRef}
+            type="file"
+            className="hidden"
+            webkitdirectory=""
+            directory=""
+            multiple
+            onChange={(e) => sendFolder(e.target.files)}
+          />
+
+          <div className="dropdown dropdown-top">
+            <button type="button" tabIndex={0} className="btn btn-ghost" title="Attach">
+              <PaperclipIcon className="size-5" />
+            </button>
+            <ul tabIndex={0} className="dropdown-content menu p-2 shadow bg-base-200 rounded-box w-44">
+              <li>
+                <button type="button" onClick={() => fileInputRef.current?.click()}>
+                  Image
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => anyFileInputRef.current?.click()}>
+                  File
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => folderInputRef.current?.click()}>
+                  Folder
+                </button>
+              </li>
+            </ul>
+          </div>
           <input
             className="input input-bordered flex-1"
             placeholder="Type a message"

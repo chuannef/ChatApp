@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# User-generated uploads (created at runtime)
+src/uploads/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

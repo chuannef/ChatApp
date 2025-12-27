@@ -12,6 +12,7 @@ import userRoutes from "./routes/user.route.js";
 import chatRoutes from "./routes/chat.route.js";
 import groupRoutes from "./routes/group.route.js";
 import messageRoutes from "./routes/message.route.js";
+import uploadRoutes from "./routes/upload.route.js";
 
 import { initSocket } from "./socket.js";
 
@@ -20,6 +21,9 @@ import { connectDB } from "./lib/db.js";
 const app = express();
 // Use Render's PORT or fallback to 5001 for local dev
 const PORT = process.env.PORT || 5001;
+
+// Trust reverse proxy headers (e.g. X-Forwarded-Proto) so req.protocol is correct.
+app.set("trust proxy", 1);
 
 // Get __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -62,11 +66,24 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
+// Serve uploaded assets (e.g. profile pictures)
+// Keep this in backend/src/uploads to match auth.controller.js
+const uploadsPath = path.join(__dirname, "uploads");
+try {
+  if (!fs.existsSync(uploadsPath)) {
+    fs.mkdirSync(uploadsPath, { recursive: true });
+  }
+} catch (e) {
+  console.log("Could not ensure uploads directory:", e?.message || e);
+}
+app.use("/uploads", express.static(uploadsPath));
+
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 // Serve frontend in production
 console.log("NODE_ENV:", process.env.NODE_ENV);

@@ -57,6 +57,13 @@ export const getAuthUser = async () => {
 
 export const completeOnboarding = async (userData) => {
   const response = await axiosInstance.post("/auth/onboarding", userData);
+  try {
+    if (response?.data?.user) {
+      localStorage.setItem("authUser", JSON.stringify(response.data.user));
+    }
+  } catch {
+    // ignore storage errors
+  }
   return response.data;
 };
 
@@ -129,6 +136,19 @@ export async function getDmMessages(userId) {
 
 export async function getGroupMessages(groupId) {
   const response = await axiosInstance.get(`/messages/group/${groupId}`);
+  return response.data;
+}
+
+// Uploads (files/folders/images) for chat attachments
+export async function uploadChatFile(file) {
+  const form = new FormData();
+  form.append("file", file);
+
+  const response = await axiosInstance.post("/uploads", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 120000,
+  });
+
   return response.data;
 }
 
