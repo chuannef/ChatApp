@@ -1,5 +1,6 @@
 https://chat-app-brxz.onrender.com
-![Login ](image.png)
+
+![Login](image.png)
 
 ![Friends](image-1.png)
 
